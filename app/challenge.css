@@ -85,3 +85,11 @@ body .challenge-toolbar .new-challenge { white-space:nowrap; background:rgba(255
 body .photo-picker { height:125px; margin-top:12px; background:#fbf2eb; }
 .summary-person blockquote { margin:22px 0 0; padding:18px 20px; background:#fbf2eb; border-left:2px solid var(--coral); font:italic 18px/1.6 Georgia,serif; color:#5e5149; }
 @media(max-width:760px) { .summary-people{grid-template-columns:1fr}.summary-layout{padding:28px 14px 60px}.summary-heading h1{font-size:42px}.summary-person{padding:22px 18px}.photo-feed{grid-template-columns:1fr}.summary-media{height:180px} }
+
+/* Keep the closing sign-in caption clear of the Day 75 note. */
+body .welcome-art .script-line { left:24%; bottom:-1%; margin:0; transform:rotate(-5deg); white-space:nowrap; z-index:2; }
+@media(max-width:720px) {
+  body .welcome-art { height:430px; margin-bottom:12px; }
+  body .welcome-art .note-two { bottom:13%; }
+  body .welcome-art .script-line { left:8%; bottom:0; font-size:21px; }
+}
