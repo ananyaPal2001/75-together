@@ -80,6 +80,12 @@ export async function renameChallenge(challengeId: string, name: string) {
   return data as Challenge;
 }
 
+export async function removeChallenge(challengeId: string) {
+  const { data, error } = await db().rpc("remove_challenge", { target_challenge: challengeId });
+  if (error) throw error;
+  return data as "deleted" | "left";
+}
+
 export async function getTaskStatuses(challengeId: string, dayNumber?: number) {
   let query = db().from("daily_task_status")
     .select("user_id,day_number,task_key,is_complete,progress_value")

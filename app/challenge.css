@@ -41,6 +41,12 @@ body .challenge-toolbar .new-challenge { white-space:nowrap; background:rgba(255
 .challenge-list strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font:400 16px Georgia,serif; }
 .challenge-list small { color:#8a7a70; font:11px Arial,sans-serif; }
 .challenge-list button>b { color:#a26857; font:600 11px Arial,sans-serif; white-space:nowrap; }
+.challenge-list-item { position:relative; min-width:0; }
+.challenge-list-item>.challenge-select { width:100%; padding-right:48px; }
+.challenge-list-item>.challenge-remove { position:absolute; right:10px; top:50%; transform:translateY(-50%); display:grid; place-items:center; width:28px; height:28px; min-width:28px; padding:0; border:1px solid #ddc9bf; border-radius:50%; background:rgba(255,253,249,.92); color:#a65e52; font:20px/1 Arial,sans-serif; z-index:2; }
+.challenge-list-item>.challenge-remove:hover { transform:translateY(-50%); border-color:#bd6f5c; background:#fff4ef; }
+.challenge-list-item>.challenge-remove:disabled { opacity:.55; cursor:wait; }
+.challenge-message { margin:12px 2px 0; color:#a65e52; font:13px Arial,sans-serif; }
 @media(max-width:1050px) {
   body .challenge-toolbar { margin-left:3vw; margin-right:3vw; grid-template-columns:1fr auto; }
   body .challenge-toolbar .new-challenge { grid-column:1/-1; width:100%; }
@@ -87,9 +93,14 @@ body .photo-picker { height:125px; margin-top:12px; background:#fbf2eb; }
 @media(max-width:760px) { .summary-people{grid-template-columns:1fr}.summary-layout{padding:28px 14px 60px}.summary-heading h1{font-size:42px}.summary-person{padding:22px 18px}.photo-feed{grid-template-columns:1fr}.summary-media{height:180px} }
 
 /* Keep the closing sign-in caption clear of the Day 75 note. */
-body .welcome-art .script-line { left:24%; bottom:-1%; margin:0; transform:rotate(-5deg); white-space:nowrap; z-index:2; }
+body .welcome-art .script-line { left:37%; top:43%; bottom:auto; margin:0; padding:0; transform:rotate(17deg) translateY(-135%); transform-origin:left center; white-space:nowrap; z-index:2; background:transparent; font-size:20px; text-shadow:0 1px 0 var(--paper),0 -1px 0 var(--paper); }
+body .welcome-art .paper-note { z-index:3; }
+body .welcome-art .journey-curve { position:absolute; inset:0; width:100%; height:100%; border:0; transform:none; overflow:visible; z-index:1; pointer-events:none; }
+body .welcome-art .journey-curve path { fill:none; stroke:#ce9e8d; stroke-width:2.5; stroke-linecap:round; stroke-dasharray:8 9; vector-effect:non-scaling-stroke; }
+body .welcome-art .journey-curve circle { fill:var(--coral); stroke:var(--paper); stroke-width:2; vector-effect:non-scaling-stroke; }
+body .welcome-art .script-line { left:55%; top:29%; transform:rotate(9deg) translateY(-145%); z-index:4; }
 @media(max-width:720px) {
   body .welcome-art { height:430px; margin-bottom:12px; }
   body .welcome-art .note-two { bottom:13%; }
-  body .welcome-art .script-line { left:8%; bottom:0; font-size:21px; }
+  body .welcome-art .script-line { left:49%; top:30%; bottom:auto; font-size:16px; transform:rotate(9deg) translateY(-145%); }
 }

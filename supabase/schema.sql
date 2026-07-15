@@ -156,6 +156,25 @@ with check (bucket_id='journal-media' and (storage.foldername(name))[2]=auth.uid
 create policy "users delete own journal media" on storage.objects for delete to authenticated
 using (bucket_id='journal-media' and owner_id=auth.uid()::text);
 
+create or replace function public.remove_challenge(target_challenge uuid)
+returns text language plpgsql security definer set search_path = public, storage
+as $$
+declare member_role text;
+begin
+  select role into member_role from public.challenge_members
+  where challenge_id=target_challenge and user_id=auth.uid() and status='accepted';
+  if member_role is null then raise exception 'You are not a member of this challenge.'; end if;
+  if member_role='owner' then
+    delete from storage.objects where bucket_id='journal-media' and name like target_challenge::text || '/%';
+    delete from public.challenges where id=target_challenge and owner_id=auth.uid();
+    return 'deleted';
+  end if;
+  delete from public.challenge_members where challenge_id=target_challenge and user_id=auth.uid();
+  return 'left';
+end;
+$$;
+grant execute on function public.remove_challenge(uuid) to authenticated;
+
 create or replace function public.handle_new_user()
 returns trigger language plpgsql security definer set search_path=public
 as $$ begin insert into profiles(id,display_name,avatar_url) values(new.id,coalesce(new.raw_user_meta_data->>'full_name',split_part(new.email,'@',1)),new.raw_user_meta_data->>'avatar_url'); return new; end $$;
