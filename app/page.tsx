@@ -74,16 +74,6 @@ function Welcome({ onContinue, session, onSignOut }: { onContinue: () => void; s
     const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } });
     setAuthMessage(error ? error.message : "Check your inbox for the sign-in link.");
   };
-  const signInGoogle = async () => {
-    const supabase = getSupabase();
-    if (!supabase) return setAuthMessage("Supabase connection is being configured.");
-    setAuthMessage("Opening Google sign-in…");
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: window.location.href, queryParams: { access_type: "offline", prompt: "select_account" } },
-    });
-    if (error) setAuthMessage(error.message);
-  };
   return (
     <main className="welcome-shell">
       <header className="simple-header"><Brand />{session ? <AccountMenu session={session} onProfileChange={() => undefined} onNewChallenge={onContinue} onSignOut={onSignOut} /> : <span className="private-pill">Private by design</span>}</header>
@@ -93,9 +83,7 @@ function Welcome({ onContinue, session, onSignOut }: { onContinue: () => void; s
           <h1>Show up for yourself.<br /><em>Together.</em></h1>
           <p className="lede">A quiet place to track the hard days, celebrate the small wins, and keep every memory you make along the way.</p>
           {session ? <button className="primary-btn" onClick={onContinue}>Continue as {session.user.user_metadata?.full_name ?? session.user.email?.split("@")[0]} <span>→</span></button> : isSupabaseConfigured ? <div className="auth-box">
-            <p className="signin-title">Sign in to your shared challenge</p>
-            <button className="google-btn" onClick={signInGoogle}><b>G</b> Continue with Google</button>
-            <div className="or"><span />or use an email link<span /></div>
+            <p className="signin-title">Sign in with a private email link</p>
             <div className="email-signin"><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" /><button onClick={signInEmail}>Send link</button></div>
             {authMessage && <p className="auth-message">{authMessage}</p>}
           </div> : <button className="primary-btn" onClick={onContinue}>Explore the prototype <span>→</span></button>}
