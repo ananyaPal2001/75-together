@@ -41,9 +41,10 @@ export async function getMyChallenges() {
     .order("joined_at", { ascending: false });
   if (error) throw error;
   const today = new Date().toLocaleDateString("en-CA");
-  return data
+  const ongoing = data
     .map((row) => row.challenges as unknown as Challenge | null)
     .filter((challenge): challenge is Challenge => Boolean(challenge && challenge.end_date >= today));
+  return [...new Map(ongoing.map((challenge) => [challenge.id, challenge])).values()];
 }
 
 export async function getMyChallenge() {
