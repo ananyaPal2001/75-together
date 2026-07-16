@@ -3,7 +3,7 @@
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { getSupabase, isSupabaseConfigured } from "../lib/supabase";
-import { Challenge, createChallenge, getChallengeMembers, getDailyCheckins, getDayMedia, getJournalEntries, getMyChallenges, getTaskStatuses, joinChallenge, Member, renameChallenge, saveJournal, savePreferredName, saveTaskStatus, submitDailyCheckin, uploadJournalMedia } from "../lib/data";
+import { Challenge, createChallenge, getChallengeMembers, getDailyCheckins, getDayMedia, getJournalEntries, getMyChallenges, getTaskStatuses, joinChallenge, Member, removeChallenge, renameChallenge, saveJournal, savePreferredName, saveTaskStatus, submitDailyCheckin, uploadJournalMedia } from "../lib/data";
 
 type View = "welcome" | "setup" | "dashboard" | "journal" | "summary";
 
@@ -15,6 +15,21 @@ const PROMPTS = [
 ];
 
 const TASK_KEYS = ["diet","workout-1","outdoor-workout","water","read","progress-photo"];
+
+function isHeic(file: File) {
+  return /\.(heic|heif)$/i.test(file.name) || /image\/(heic|heif)/i.test(file.type);
+}
+
+async function browserReadyImage(file: File) {
+  if (!isHeic(file)) return file;
+  const { default: heic2any } = await import("heic2any");
+  const converted = await heic2any({ blob: file, toType: "image/jpeg", quality: 0.9 });
+  const blob = Array.isArray(converted) ? converted[0] : converted;
+  return new File([blob], file.name.replace(/\.(heic|heif)$/i, "") + ".jpg", {
+    type: "image/jpeg",
+    lastModified: file.lastModified,
+  });
+}
 
 function todayISO() { return new Date().toLocaleDateString("en-CA"); }
 function challengeDay(challenge: Challenge | null) {
@@ -71,7 +86,7 @@ function Welcome({ onContinue, session, onSignOut }: { onContinue: () => void; s
     const supabase = getSupabase();
     if (!supabase) return setAuthMessage("Supabase connection is being configured.");
     if (!email.trim()) return setAuthMessage("Enter your email address first.");
-    const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.href } });
+    const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } });
     setAuthMessage(error ? error.message : "Check your inbox for the sign-in link.");
   };
   return (
@@ -92,7 +107,16 @@ function Welcome({ onContinue, session, onSignOut }: { onContinue: () => void; s
         <div className="welcome-art" aria-hidden="true">
           <div className="paper-note note-one"><span>Day 01</span><strong>The promise</strong><p>“We start, even if we’re not ready.”</p></div>
           <div className="paper-note note-two"><span>Day 75</span><strong>The becoming</strong><p>“Look how far we came.”</p></div>
-          <div className="journey-line"><i /><i /><i /><i /><i /></div>
+          <svg className="journey-line journey-curve" viewBox="0 0 600 560" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M 286 210 C 405 125, 555 175, 474 274 C 410 352, 185 224, 207 344 C 220 417, 292 408, 334 344" />
+            <circle cx="286" cy="210" r="7" />
+            <circle cx="405" cy="166" r="6" />
+            <circle cx="490" cy="232" r="6" />
+            <circle cx="342" cy="302" r="6" />
+            <circle cx="213" cy="339" r="6" />
+            <circle cx="258" cy="397" r="6" />
+            <circle cx="334" cy="344" r="7" />
+          </svg>
           <p className="script-line">one day at a time</p>
         </div>
       </section>
@@ -167,7 +191,7 @@ function ProgressRing({ value, coral = false }: { value: number; coral?: boolean
   return <span className={`ring ${coral ? "coral" : ""}`} style={{ "--value": `${value * 3.6}deg` } as React.CSSProperties}><b>{value}%</b></span>;
 }
 
-function Dashboard({ onOpenJournal, challenge, challenges, members, session, onNewChallenge, onChallengeChange, onProfileChange, onSignOut }: { onOpenJournal: (day: number) => void; challenge: Challenge | null; challenges: Challenge[]; members: Member[]; session: Session | null; onNewChallenge: () => void; onChallengeChange: (challenge: Challenge) => void; onProfileChange: () => void; onSignOut: () => void }) {
+function Dashboard({ onOpenJournal, challenge, challenges, members, session, onNewChallenge, onChallengeChange, onChallengeRemoved, onProfileChange, onSignOut }: { onOpenJournal: (day: number) => void; challenge: Challenge | null; challenges: Challenge[]; members: Member[]; session: Session | null; onNewChallenge: () => void; onChallengeChange: (challenge: Challenge) => void; onChallengeRemoved: (challengeId:string) => void; onProfileChange: () => void; onSignOut: () => void }) {
   const currentDay = challengeDay(challenge);
   const [rows, setRows] = useState<Array<{user_id:string;day_number:number;task_key:string;is_complete:boolean;progress_value:number}>>([]);
   const [checkins, setCheckins] = useState<Array<{user_id:string;day_number:number;submitted_at:string}>>([]);
@@ -176,13 +200,15 @@ function Dashboard({ onOpenJournal, challenge, challenges, members, session, onN
   const [editingName, setEditingName] = useState(false);
   const [draftName, setDraftName] = useState(challenge?.name ?? "");
   const [copied, setCopied] = useState(false);
-  const [userId, setUserId] = useState("");
+  const [userId, setUserId] = useState(session?.user.id ?? "");
+  const [removingId, setRemovingId] = useState("");
+  const [challengeMessage, setChallengeMessage] = useState("");
   useEffect(() => {
     if (!challenge || !isSupabaseConfigured) return;
-    getSupabase()?.auth.getUser().then(({data}) => setUserId(data.user?.id ?? ""));
+    setUserId(session?.user.id ?? "");
     getTaskStatuses(challenge.id).then(setRows).catch(() => undefined);
     getDailyCheckins(challenge.id).then(setCheckins).catch(() => undefined);
-  }, [challenge]);
+  }, [challenge, session?.user.id]);
   const mine = TASK_KEYS.map((key) => Boolean(rows.find((row) => row.user_id === userId && row.day_number === currentDay && row.task_key === key)?.is_complete));
   const me = members.find((member) => member.user_id === userId) ?? members[0];
   const partner = members.find((member) => member.user_id !== userId);
@@ -218,6 +244,14 @@ function Dashboard({ onOpenJournal, challenge, challenges, members, session, onN
       setCheckinMessage(""); setCelebrating(true);
     } catch (error) { setCheckinMessage(error instanceof Error ? error.message : "Could not finish today’s check-in."); }
   };
+  const removeFromList = async (item:Challenge) => {
+    const confirmed = window.confirm(`Remove “${item.name}”?\n\nIf you created it, this permanently deletes it for both participants. If you joined it, you will leave the challenge.`);
+    if (!confirmed) return;
+    setRemovingId(item.id); setChallengeMessage("");
+    try { const result=await removeChallenge(item.id); onChallengeRemoved(item.id); setChallengeMessage(result==="deleted"?"Challenge deleted.":"You left the challenge."); }
+    catch(error) { setChallengeMessage(error instanceof Error?error.message:"Could not remove this challenge."); }
+    finally { setRemovingId(""); }
+  };
   return (
     <main className="dashboard-shell">
       <header className="app-header">
@@ -232,7 +266,8 @@ function Dashboard({ onOpenJournal, challenge, challenges, members, session, onN
       </section>
       <section className="challenge-switcher" aria-label="My ongoing challenges">
         <div className="challenge-switcher-heading"><div><small>Your commitments</small><h2>My ongoing challenges</h2></div><span>{challenges.length} active</span></div>
-        <div className="challenge-list">{challenges.map((item)=>{ const active=item.id===challenge?.id; const dayNumber=challengeDay(item); return <button key={item.id} className={active?"selected":""} onClick={()=>onChallengeChange(item)}><span className="challenge-list-mark">{active?"✓":"→"}</span><span><strong>{item.name}</strong><small>{new Date(`${item.start_date}T12:00:00`).toLocaleDateString("en-IN",{day:"numeric",month:"short"})} – {new Date(`${item.end_date}T12:00:00`).toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric"})}</small></span><b>{item.start_date>todayISO()?"Upcoming":`Day ${dayNumber}`}</b></button>;})}</div>
+        <div className="challenge-list">{challenges.map((item)=>{ const active=item.id===challenge?.id; const dayNumber=challengeDay(item); return <div className="challenge-list-item" key={item.id}><button className={`challenge-select ${active?"selected":""}`} onClick={()=>onChallengeChange(item)}><span className="challenge-list-mark">{active?"✓":"→"}</span><span><strong>{item.name}</strong><small>{new Date(`${item.start_date}T12:00:00`).toLocaleDateString("en-IN",{day:"numeric",month:"short"})} – {new Date(`${item.end_date}T12:00:00`).toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric"})}</small></span><b>{item.start_date>todayISO()?"Upcoming":`Day ${dayNumber}`}</b></button><button className="challenge-remove" disabled={removingId===item.id} onClick={()=>removeFromList(item)} aria-label={`Remove ${item.name}`} title="Remove challenge">{removingId===item.id?"…":"×"}</button></div>;})}</div>
+        {challengeMessage&&<p className="challenge-message">{challengeMessage}</p>}
       </section>
       <section className="dashboard-grid">
         <div className="main-column">
@@ -267,7 +302,7 @@ function Dashboard({ onOpenJournal, challenge, challenges, members, session, onN
           <section className="checklist-card">
             <div className="card-heading"><div><p>Today · Day {currentDay}</p><small>{today.toLocaleDateString("en-IN",{weekday:"long",day:"numeric",month:"long"})}</small></div><span className="leaf">⌁</span></div>
             <div className="task-list">
-              <button onClick={() => toggle(0)} className={mine[0] ? "done" : ""}><i>{mine[0] ? "✓" : ""}</i><span><b>Follow a diet</b><small>No cheat meals or alcohol</small></span></button>
+              <button type="button" onClick={() => toggle(0)} className={mine[0] ? "done" : ""} aria-pressed={mine[0]}><i>{mine[0] ? "✓" : ""}</i><span><b>Follow a diet</b><small>No cheat meals or alcohol</small></span></button>
               <div className={`task-rule workout-rule ${mine[1]&&mine[2]?"done":""}`}><i>{mine[1]&&mine[2]?"✓":""}</i><span><b>Two 45-minute workouts</b><small>One workout must be outdoors</small><span className="workout-checks"><button onClick={() => toggle(1)} className={mine[1]?"selected":""}>{mine[1]?"✓ ":""}General</button><button onClick={() => toggle(2)} className={mine[2]?"selected":""}>{mine[2]?"✓ ":""}Outdoor</button></span></span></div>
               <div className={`task-rule water-rule ${mine[3]?"done":""}`}><i>{mine[3]?"✓":""}</i><span><b>Drink one gallon of water</b><small>{waterGlasses}/10 glasses · approximately 3.8 L</small><span className="water-progress"><button onClick={() => changeWater(waterGlasses-1)} aria-label="Remove one glass">−</button><span className="water-track">{Array.from({length:10},(_,i)=><i key={i} className={i<waterGlasses?"filled":""} />)}</span><button onClick={() => changeWater(waterGlasses+1)} aria-label="Add one glass">＋</button></span></span></div>
               <button onClick={() => toggle(4)} className={mine[4] ? "done" : ""}><i>{mine[4] ? "✓" : ""}</i><span><b>Read 10 pages</b><small>A nonfiction or personal-development book</small></span></button>
@@ -334,10 +369,18 @@ function Journal({ day, onBack, challenge, members, userId, session, onProfileCh
       setPublishedPhotos(media.filter((item)=>item.user_id===userId).map((item)=>item.url));
     }).catch(() => undefined);
   }, [challenge, day, userId]);
-  const pickPhoto = (event: ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files ?? []).filter((file)=>file.type.startsWith("image/"));
-    setPhotos((current)=>[...current,...files.map((file)=>({file,url:URL.createObjectURL(file)}))]);
+  const pickPhoto = async (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? []).filter((file)=>file.type.startsWith("image/") || isHeic(file));
     event.target.value = "";
+    if (!files.length) return;
+    setSaved("Preparing photos…");
+    try {
+      const ready = await Promise.all(files.map(browserReadyImage));
+      setPhotos((current)=>[...current,...ready.map((file)=>({file,url:URL.createObjectURL(file)}))]);
+      setSaved(ready.some((file,index)=>file !== files[index]) ? "HEIC photo converted and ready to publish." : "");
+    } catch {
+      setSaved("One of the selected HEIC photos could not be converted. Please try another photo.");
+    }
   };
   const removePhoto = (url:string) => setPhotos((current)=>{ const target=current.find((photo)=>photo.url===url); if(target) URL.revokeObjectURL(target.url); return current.filter((photo)=>photo.url!==url); });
   const publish = async () => {
@@ -365,8 +408,8 @@ function Journal({ day, onBack, challenge, members, userId, session, onProfileCh
             <div className="entry-author"><Avatar name={me?.display_name ?? "You"} /><div><strong>{me?.display_name ?? "Your"}’s entry</strong><span>Edited just now</span></div></div>
             {(publishedPhotos.length>0||photos.length>0) && <div className="photo-feed" aria-label="Day photo feed">{publishedPhotos.map((url,index)=><figure className="photo-tile published" key={url}><img src={url} alt={`Published memory ${index+1}`}/><figcaption>Published</figcaption></figure>)}{photos.map((photo,index)=><figure className="photo-tile" key={photo.url}><img src={photo.url} alt={`New memory ${index+1}`}/><button type="button" onClick={()=>removePhoto(photo.url)} aria-label={`Remove photo ${index+1}`}>×</button><figcaption>Ready to publish</figcaption></figure>)}</div>}
             <label className="photo-drop photo-picker">
-              <b>＋</b><span>Add photos to today’s feed</span><small>Select several JPEG, PNG, or WebP images</small>
-              <input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={pickPhoto} />
+              <b>＋</b><span>Add photos to today’s feed</span><small>Select several JPEG, PNG, WebP, HEIC, or HEIF images</small>
+              <input type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" multiple onChange={pickPhoto} />
             </label>
             <label className="writing-label">Today’s reflection<textarea value={text} onChange={(e) => setText(e.target.value)} placeholder={PROMPTS[day % PROMPTS.length]} /></label>
             {saved && <p className="save-message">{saved}</p>}
@@ -439,9 +482,10 @@ export default function Home() {
   const signOut = async () => { await getSupabase()?.auth.signOut(); setSession(null); setChallenge(null); setChallenges([]); setMembers([]); navigate("welcome", true); };
   const refreshChallenges = async (preferred?:Challenge) => { const items=await getMyChallenges(); setChallenges(items); if(preferred) setChallenge(preferred); else if(!challenge&&items[0]) setChallenge(items[0]); };
   const openJournal = (selected: number) => { setDay(selected); navigate(selected < challengeDay(challenge) ? "summary" : "journal"); };
+  const challengeRemoved = (challengeId:string) => { const remaining=challenges.filter((item)=>item.id!==challengeId); setChallenges(remaining); if(challenge?.id===challengeId) { setChallenge(remaining[0]??null); if(!remaining[0]) navigate("setup"); } };
   if (view === "welcome") return <Welcome session={session} onSignOut={signOut} onContinue={() => navigate("setup")} />;
   if (view === "setup") return <Setup session={session} onSignOut={signOut} onDone={(created) => { if (created) { setChallenge(created); refreshChallenges(created).catch(()=>undefined); } navigate("dashboard"); }} />;
   if (view === "summary") return <DaySummary challenge={challenge} members={members} session={session} day={day} onProfileChange={refreshMembers} onSignOut={signOut} onNewChallenge={() => { setChallenge(null); navigate("setup"); }} onBack={() => window.history.back()} />;
   if (view === "journal") return <Journal challenge={challenge} members={members} userId={session?.user.id ?? ""} session={session} onProfileChange={refreshMembers} onSignOut={signOut} onNewChallenge={() => { setChallenge(null); navigate("setup"); }} registerSave={(save) => { saveBeforeLeave.current = save; }} day={day} onBack={() => window.history.back()} />;
-  return <Dashboard challenge={challenge} challenges={challenges} members={members} session={session} onProfileChange={refreshMembers} onSignOut={signOut} onChallengeChange={setChallenge} onNewChallenge={() => navigate("setup")} onOpenJournal={openJournal} />;
+  return <Dashboard challenge={challenge} challenges={challenges} members={members} session={session} onProfileChange={refreshMembers} onSignOut={signOut} onChallengeChange={setChallenge} onChallengeRemoved={challengeRemoved} onNewChallenge={() => navigate("setup")} onOpenJournal={openJournal} />;
 }
