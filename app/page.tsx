@@ -221,7 +221,17 @@ function Dashboard({ onOpenJournal, challenge, challenges, members, session, onN
     const next = !mine[i];
     setRows((old) => [...old.filter((row) => !(row.user_id === userId && row.day_number === currentDay && row.task_key === TASK_KEYS[i])), {user_id:userId,day_number:currentDay,task_key:TASK_KEYS[i],is_complete:next,progress_value:next?10:0}]);
     try { await saveTaskStatus(challenge.id, currentDay, TASK_KEYS[i], next); }
-    catch { getTaskStatuses(challenge.id).then(setRows); }
+    catch (error) {
+  console.error("Diet update failed:", error);
+
+  const message =
+    error instanceof Error
+      ? error.message
+      : JSON.stringify(error);
+
+  setCheckinMessage(`Could not save checklist: ${message}`);
+  getTaskStatuses(challenge.id).then(setRows);
+}
   };
   const changeWater = async (nextValue: number) => {
     if (!challenge) return;
