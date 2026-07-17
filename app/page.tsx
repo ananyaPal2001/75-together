@@ -216,23 +216,50 @@ function Dashboard({ onOpenJournal, challenge, challenges, members, session, onN
   const partnerChecks = partner ? TASK_KEYS.map((key) => rows.some((row) => row.user_id === partner.user_id && row.day_number === currentDay && row.task_key === key && row.is_complete)) : [];
   const partnerCompleted = partner ? Number(partnerChecks[0]) + Number(partnerChecks[1] && partnerChecks[2]) + Number(partnerChecks[3]) + Number(partnerChecks[4]) + Number(partnerChecks[5]) : 0;
   const waterGlasses = Number(rows.find((row) => row.user_id === userId && row.day_number === currentDay && row.task_key === "water")?.progress_value ?? 0);
-  const toggle = async (i: number) => {
-    if (!challenge) return;
-    const next = !mine[i];
-    setRows((old) => [...old.filter((row) => !(row.user_id === userId && row.day_number === currentDay && row.task_key === TASK_KEYS[i])), {user_id:userId,day_number:currentDay,task_key:TASK_KEYS[i],is_complete:next,progress_value:next?10:0}]);
-    try { await saveTaskStatus(challenge.id, currentDay, TASK_KEYS[i], next); }
-    catch (error) {
-  console.error("Diet update failed:", error);
+const toggle = async (i: number) => {
+  if (!challenge || !userId) return;
 
-  const message =
-    error instanceof Error
-      ? error.message
-      : JSON.stringify(error);
+  const taskKey = TASK_KEYS[i];
+  const next = !mine[i];
 
-  setCheckinMessage(`Could not save checklist: ${message}`);
-  getTaskStatuses(challenge.id).then(setRows);
-}
-  };
+  try {
+    await saveTaskStatus(
+      challenge.id,
+      currentDay,
+      taskKey,
+      next
+    );
+
+    setRows((old) => [
+      ...old.filter(
+        (row) =>
+          !(
+            row.user_id === userId &&
+            row.day_number === currentDay &&
+            row.task_key === taskKey
+          )
+      ),
+      {
+        user_id: userId,
+        day_number: currentDay,
+        task_key: taskKey,
+        is_complete: next,
+        progress_value: next ? 10 : 0,
+      },
+    ]);
+
+    setCheckinMessage("");
+  } catch (error) {
+    console.error("Checklist update failed:", error);
+
+    const message =
+      error instanceof Error
+        ? error.message
+        : JSON.stringify(error);
+
+    setCheckinMessage(`Could not save checklist: ${message}`);
+  }
+};
   const changeWater = async (nextValue: number) => {
     if (!challenge) return;
     const value = Math.max(0, Math.min(10, nextValue));
