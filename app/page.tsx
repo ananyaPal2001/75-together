@@ -485,12 +485,31 @@ export default function Home() {
     return () => data.subscription.unsubscribe();
   }, []);
   useEffect(() => {
-    if (!session || !isSupabaseConfigured) return;
-    getMyChallenges().then((items) => {
+  if (!session?.user.id || !isSupabaseConfigured) return;
+
+  getMyChallenges()
+    .then((items) => {
       setChallenges(items);
-      if (items[0]) { setChallenge(items[0]); navigate("dashboard"); }
-    }).catch(() => undefined);
-  }, [session]);
+
+      if (items[0]) {
+        setChallenge((current) => current ?? items[0]);
+
+        setView((currentView) => {
+          if (currentView === "welcome") {
+            window.history.replaceState(
+              { view: "dashboard" },
+              "",
+              window.location.href
+            );
+            return "dashboard";
+          }
+
+          return currentView;
+        });
+      }
+    })
+    .catch(() => undefined);
+}, [session?.user.id]);
   useEffect(() => {
     if (!challenge) return;
     getChallengeMembers(challenge.id).then(setMembers).catch(() => setMembers([]));
