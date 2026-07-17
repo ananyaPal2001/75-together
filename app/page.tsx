@@ -393,6 +393,8 @@ function Journal({ day, onBack, challenge, members, userId, session, onProfileCh
   const [text, setText] = useState("");
   const [photos, setPhotos] = useState<Array<{ file: File; url: string }>>([]);
   const [publishedPhotos, setPublishedPhotos] = useState<string[]>([]);
+  const [partnerText, setPartnerText] = useState("");
+  const [partnerPhotos, setPartnerPhotos] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState("");
   const me = members.find((member) => member.user_id === userId) ?? members[0];
@@ -402,10 +404,13 @@ function Journal({ day, onBack, challenge, members, userId, session, onProfileCh
     if (!challenge || !isSupabaseConfigured) return;
     Promise.all([getJournalEntries(challenge.id, day),getDayMedia(challenge.id,day)]).then(([entries,media]) => {
       const own = entries.find((entry) => entry.user_id === userId);
-      if (own) setText(own.body);
+      const shared = partner ? entries.find((entry) => entry.user_id === partner.user_id) : undefined;
+      setText(own?.body ?? "");
       setPublishedPhotos(media.filter((item)=>item.user_id===userId).map((item)=>item.url));
+      setPartnerText(shared?.body ?? "");
+      setPartnerPhotos(partner ? media.filter((item)=>item.user_id===partner.user_id).map((item)=>item.url) : []);
     }).catch(() => undefined);
-  }, [challenge, day, userId]);
+  }, [challenge, day, userId, partner?.user_id]);
   const pickPhoto = async (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []).filter((file)=>file.type.startsWith("image/") || isHeic(file));
     event.target.value = "";
@@ -453,7 +458,7 @@ function Journal({ day, onBack, challenge, members, userId, session, onProfileCh
             <div className="entry-actions"><button className="secondary-btn">Save draft</button><button className="primary-btn" disabled={saving} onClick={publish}>{saving ? "Publishing…" : "Publish memory"} <span>→</span></button></div>
           </article>
           <aside className="journal-aside">
-            <section className="partner-entry">{partner ? <><div className="entry-author"><Avatar name={partner.display_name} dark /><div><strong>{partner.display_name}’s entry</strong><span>Shared with you</span></div></div><blockquote>Their reflection will appear here once published.</blockquote></> : <><p className="eyebrow">Your shared journal</p><blockquote>Invite your friend to see their memories beside yours.</blockquote></>}</section>
+            <section className="partner-entry">{partner ? <><div className="entry-author"><Avatar name={partner.display_name} dark /><div><strong>{partner.display_name}’s entry</strong><span>{partnerText || partnerPhotos.length ? "Published and shared with you" : "Nothing published yet"}</span></div></div>{partnerPhotos.length > 0 && <div className="photo-feed partner-photo-feed" aria-label={`${partner.display_name}’s photo feed`}>{partnerPhotos.map((url,index)=><figure className="photo-tile published" key={url}><img src={url} alt={`${partner.display_name}’s memory ${index+1}`}/><figcaption>{partner.display_name}</figcaption></figure>)}</div>}<blockquote>{partnerText || `${partner.display_name} has not published a reflection for this day yet.`}</blockquote></> : <><p className="eyebrow">Your shared journal</p><blockquote>Invite your friend to see their memories beside yours.</blockquote></>}</section>
             <section className="day-summary"><p>Day {day} summary</p><div><span>{me?.display_name ?? "You"}</span><strong>— / 5</strong></div>{partner && <div><span>{partner.display_name}</span><strong>— / 5</strong></div>}<small>Both checklists remain editable until midnight.</small></section>
           </aside>
         </div>
