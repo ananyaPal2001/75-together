@@ -86,7 +86,7 @@ function Welcome({ onContinue, session, onSignOut }: { onContinue: () => void; s
     const supabase = getSupabase();
     if (!supabase) return setAuthMessage("Supabase connection is being configured.");
     if (!email.trim()) return setAuthMessage("Enter your email address first.");
-    const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } });
+    const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.href } });
     setAuthMessage(error ? error.message : "Check your inbox for the sign-in link.");
   };
   return (
