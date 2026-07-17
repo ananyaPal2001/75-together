@@ -232,7 +232,7 @@ function Dashboard({ onOpenJournal, challenge, challenges, members, session, onN
   };
   const saveName = async () => { if (!challenge || !draftName.trim()) return; const updated = await renameChallenge(challenge.id, draftName); onChallengeChange(updated); setEditingName(false); };
   const copyInvite = async () => { if (!challenge) return; await navigator.clipboard.writeText(challenge.invite_code); setCopied(true); setTimeout(() => setCopied(false), 1500); };
-  const copyInviteLink = async () => { if (!challenge) return; const link = `${window.location.origin}/?invite=${challenge.invite_code}`; await navigator.clipboard.writeText(link); setCopied(true); setTimeout(() => setCopied(false), 1500); };
+  const copyInviteLink = async () => { if (!challenge) return; const link = `${window.location.href}/?invite=${challenge.invite_code}`; await navigator.clipboard.writeText(link); setCopied(true); setTimeout(() => setCopied(false), 1500); };
   const today = dateForDay(challenge, currentDay);
   const progress = Math.round(currentDay / 75 * 100);
   const finishDay = async () => {
