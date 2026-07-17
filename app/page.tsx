@@ -472,12 +472,28 @@ export default function Home() {
   const saveBeforeLeave = useRef<(() => Promise<void>) | null>(null);
   const navigate = (next: View, replace = false) => {
     setView(next);
+    sessionStorage.setItem("75-together-view", next);
+
     const method = replace ? "replaceState" : "pushState";
     window.history[method]({ view: next }, "", window.location.href);
     window.scrollTo(0, 0);
   };
   useEffect(() => {
-    window.history.replaceState({ view: "welcome" }, "", window.location.href);
+    const savedView = sessionStorage.getItem("75-together-view") as View | null;
+    const restoredView: View =
+      savedView &&
+      ["welcome", "setup", "dashboard", "journal", "summary"].includes(savedView)
+        ? savedView
+        : "welcome";
+    const savedDay = Number(sessionStorage.getItem("75-together-day"));
+
+    setView(restoredView);
+    if (savedDay >= 1 && savedDay <= 75) setDay(savedDay);
+    window.history.replaceState(
+      { view: restoredView },
+      "",
+      window.location.href
+    );
     const supabase = getSupabase();
     if (!supabase) return;
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -527,6 +543,7 @@ export default function Home() {
         if (saveBeforeLeave.current) await saveBeforeLeave.current();
       }
       setView(target);
+      sessionStorage.setItem("75-together-view", target);
       window.scrollTo(0,0);
     };
     window.addEventListener("popstate", handleBack);
@@ -539,9 +556,26 @@ export default function Home() {
     return () => window.removeEventListener("beforeunload", warn);
   }, [view]);
   const refreshMembers = () => { if (challenge) getChallengeMembers(challenge.id).then(setMembers).catch(() => undefined); };
-  const signOut = async () => { await getSupabase()?.auth.signOut(); setSession(null); setChallenge(null); setChallenges([]); setMembers([]); navigate("welcome", true); };
+  const signOut = async () => {
+    sessionStorage.removeItem("75-together-view");
+    sessionStorage.removeItem("75-together-day");
+    await getSupabase()?.auth.signOut();
+    setSession(null);
+    setChallenge(null);
+    setChallenges([]);
+    setMembers([]);
+    setView("welcome");
+    window.history.replaceState({ view: "welcome" }, "", window.location.href);
+  };
   const refreshChallenges = async (preferred?:Challenge) => { const items=await getMyChallenges(); setChallenges(items); if(preferred) setChallenge(preferred); else if(!challenge&&items[0]) setChallenge(items[0]); };
-  const openJournal = (selected: number) => { setDay(selected); navigate(selected < challengeDay(challenge) ? "summary" : "journal"); };
+  const openJournal = (selected: number) => {
+    const nextView: View =
+      selected < challengeDay(challenge) ? "summary" : "journal";
+
+    setDay(selected);
+    sessionStorage.setItem("75-together-day", String(selected));
+    navigate(nextView);
+  };
   const challengeRemoved = (challengeId:string) => { const remaining=challenges.filter((item)=>item.id!==challengeId); setChallenges(remaining); if(challenge?.id===challengeId) { setChallenge(remaining[0]??null); if(!remaining[0]) navigate("setup"); } };
   if (view === "welcome") return <Welcome session={session} onSignOut={signOut} onContinue={() => navigate("setup")} />;
   if (view === "setup") return <Setup session={session} onSignOut={signOut} onDone={(created) => { if (created) { setChallenge(created); refreshChallenges(created).catch(()=>undefined); } navigate("dashboard"); }} />;
