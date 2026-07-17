@@ -127,15 +127,38 @@ export async function submitDailyCheckin(challengeId: string, dayNumber: number)
   return data;
 }
 
-export async function saveTaskStatus(challengeId: string, dayNumber: number, taskKey: string, complete: boolean, progressValue = complete ? 10 : 0) {
-  const { error } = await db().from("daily_task_status").upsert({
-    challenge_id: challengeId,
-    day_number: dayNumber,
-    task_key: taskKey,
-    is_complete: complete,
-    progress_value: progressValue,
-    completed_at: complete ? new Date().toISOString() : null,
-  }, { onConflict: "challenge_id,user_id,day_number,task_key" });
+export async function saveTaskStatus(
+  challengeId: string,
+  dayNumber: number,
+  taskKey: string,
+  complete: boolean,
+  progressValue = complete ? 10 : 0
+) {
+  const client = db();
+
+  const {
+    data: { user },
+    error: authError,
+  } = await client.auth.getUser();
+
+  if (authError) throw authError;
+  if (!user) throw new Error("Please sign in again.");
+
+  const { error } = await client.from("daily_task_status").upsert(
+    {
+      challenge_id: challengeId,
+      user_id: user.id,
+      day_number: dayNumber,
+      task_key: taskKey,
+      is_complete: complete,
+      progress_value: progressValue,
+      completed_at: complete ? new Date().toISOString() : null,
+    },
+    {
+      onConflict: "challenge_id,user_id,day_number,task_key",
+    }
+  );
+
   if (error) throw error;
 }
 
