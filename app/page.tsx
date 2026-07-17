@@ -497,7 +497,11 @@ export default function Home() {
   }, [challenge]);
   useEffect(() => {
     const handleBack = async (event: PopStateEvent) => {
-      const target = (event.state?.view as View | undefined) ?? "welcome";
+      const target =
+  (event.state?.view as View | undefined) ??
+  (view === "journal" || view === "summary"
+    ? "dashboard"
+    : "welcome");
       if (view === "dashboard" || view === "journal") {
         const shouldLeave = window.confirm(view === "journal" ? "Save your journal changes and go back?" : "Your checklist changes are saved. Return to the sign-in page?");
         if (!shouldLeave) { window.history.go(1); return; }
